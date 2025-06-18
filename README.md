@@ -139,9 +139,11 @@ This will:
   `https://your-username.github.io/your-repo-name`
 
 If error:
-```error: RPC failed; HTTP 400 curl 22 The requested URL returned error: 400
+```
+error: RPC failed; HTTP 400 curl 22 The requested URL returned error: 400
 send-pack: unexpected disconnect while reading sideband packet
-fatal: the remote end hung up unexpectedly```
+fatal: the remote end hung up unexpectedly
+```
 
 Increase Git's buffer size:
 ```git config --global http.postBuffer 524288000```
