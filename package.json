@@ -2,7 +2,7 @@
   "name": "repeat-timer-app",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://username.github.io/repeat-timer-app",
+  "homepage": "https://hahalima.github.io/repeat-timer-app",
   "dependencies": {
     "react": "^18.0.0",
     "react-dom": "^18.0.0",

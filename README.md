@@ -3,6 +3,7 @@
 A customizable repeat timer built with React and TypeScript that plays a sound at the end of each interval. Great for workouts, study blocks, Pomodoros sessions, or any repetitive task.
 
 ---
+Demo: [https://hahalima.github.io/repeat-timer-app/](https://hahalima.github.io/repeat-timer-app/)
 
 ![Repeat Timer App Screenshot](./readme-screenshot.png)
 
@@ -92,6 +93,53 @@ repeat-timer-app/
 ├── package.json
 └── README.md
 ```
+
+---
+
+## Deployment to GitHub Pages
+
+To deploy this app easily using the `gh-pages` package:
+
+### 1. Install `gh-pages`
+
+```bash
+npm install gh-pages --save-dev
+```
+
+### 2. Update `package.json`
+
+Add the homepage field (replace `your-username` and `your-repo`):
+
+```json
+"homepage": "https://your-username.github.io/your-repo-name"
+```
+
+Then add these scripts:
+
+```json
+"scripts": {
+  "predeploy": "npm run build",
+  "deploy": "gh-pages -d build"
+}
+```
+
+### 3. Deploy
+
+```bash
+npm run deploy
+```
+
+This will:
+
+- Build the app (`npm run build`)
+- Push the `build/` folder to the `gh-pages` branch
+- Make your app available at:  
+  `https://your-username.github.io/your-repo-name`
+
+### 4. GitHub Repo Settings
+
+- Go to your repository → **Settings** → **Pages**
+- Set the source to `gh-pages` branch and the `/ (root)` folder
 
 ---
 
