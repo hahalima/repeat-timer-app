@@ -2,6 +2,8 @@
 
 A customizable repeat timer built with React and TypeScript that plays a sound at the end of each interval. Great for workouts, study blocks, Pomodoros sessions, or any repetitive task.
 
+Inspired by: [https://time-time.net/timer/countdown-timer.php](https://time-time.net/timer/countdown-timer.php)
+
 ---
 Demo: [https://hahalima.github.io/repeat-timer-app/](https://hahalima.github.io/repeat-timer-app/)
 
