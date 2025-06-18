@@ -1,0 +1,123 @@
+body {
+  margin: 0;
+  font-family: 'Arial', sans-serif;
+}
+
+body.dark {
+  background-color: #121212;
+  color: white;
+}
+
+body.light {
+  background-color: white;
+  color: black;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: #2563eb;
+  color: white;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-green {
+  background-color: #16a34a;
+}
+
+.btn-green:hover {
+  background-color: #15803d;
+}
+
+.btn-yellow {
+  background-color: #eab308;
+}
+
+.btn-yellow:hover {
+  background-color: #ca8a04;
+}
+
+.btn-red {
+  background-color: #dc2626;
+}
+
+.btn-red:hover {
+  background-color: #b91c1c;
+}
+
+.btn-blue {
+  background-color: #2563eb;
+}
+
+.btn-blue:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-secondary {
+  background-color: #4b5563;
+}
+
+.btn-secondary:hover {
+  background-color: #374151;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 4rem;
+  padding-bottom: 2rem;
+  text-align: center;
+}
+
+h1 {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.time-input {
+  font-size: 2.5rem;
+  text-align: center;
+  padding: 0.3rem 0.8rem;
+  margin-bottom: 1rem;
+  border: 2px solid #ccc;
+  border-radius: 0.4rem;
+  width: 200px;
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.top-right-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
