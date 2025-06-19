@@ -180,7 +180,17 @@ const App: React.FC = () => {
   return (
     <div className="app">
       <div className="top-right-toggle">
-        <button onClick={() => setDarkMode(!darkMode)} className="btn text-sm">
+        <button
+          onClick={() => {
+            document.body.classList.add("with-transition");
+            setDarkMode((prev) => !prev);
+
+            setTimeout(() => {
+              document.body.classList.remove("with-transition");
+            }, 500); // Match CSS transition duration
+          }}
+          className="btn text-sm"
+        >
           {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
         </button>
       </div>
