@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/repeat-timer-app/static/css/main.495b453c.css",
-    "main.js": "/repeat-timer-app/static/js/main.de2e5c80.js",
+    "main.js": "/repeat-timer-app/static/js/main.5b37c7dc.js",
     "index.html": "/repeat-timer-app/index.html",
     "main.495b453c.css.map": "/repeat-timer-app/static/css/main.495b453c.css.map",
-    "main.de2e5c80.js.map": "/repeat-timer-app/static/js/main.de2e5c80.js.map"
+    "main.5b37c7dc.js.map": "/repeat-timer-app/static/js/main.5b37c7dc.js.map"
   },
   "entrypoints": [
     "static/css/main.495b453c.css",
-    "static/js/main.de2e5c80.js"
+    "static/js/main.5b37c7dc.js"
   ]
 }
