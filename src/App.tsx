@@ -103,6 +103,15 @@ const App: React.FC = () => {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
 
+  useEffect(() => {
+    const now = new Date();
+    const end = new Date(now.getTime() + (repeat ? initialTime * repeatCount : initialTime) * 1000);
+    setTimeRange({
+      start: formatTimeWithSeconds(now),
+      end: formatTimeWithSeconds(end),
+    });
+  }, [repeatCount]);
+
   const startTimer = (seconds: number) => {
     const now = new Date();
     const end = new Date(now.getTime() + (repeat ? seconds * repeatCount : seconds) * 1000);
@@ -209,7 +218,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="btn-group">
-        <button className="btn btn-green" onClick={() => setIsRunning(true)}>
+        <button className="btn btn-green" onClick={() => startTimer(initialTime)}>
           <FaPlay /> Start
         </button>
         <button className="btn btn-yellow" onClick={() => setIsRunning(false)}>
