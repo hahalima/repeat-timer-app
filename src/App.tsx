@@ -72,26 +72,34 @@ const App: React.FC = () => {
     audio.load();
   };
 
+  const startNewInterval = () => {
+    clearInterval(intervalRef.current!);
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+  };
+
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
-      intervalRef.current = window.setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
+      startNewInterval();
     } else if (timeLeft === 0 && isRunning) {
-      playSound();
       if (repeat && repeatCycle + 1 < repeatCount) {
+        playSound();
         setRepeatCycle((prev) => prev + 1);
         setTimeLeft(initialTime);
+        startNewInterval();
       } else {
+        playSound(); // can remove
+        playSound("/sounds/done-woman-voice.mp3");
         setIsRunning(false);
         setRepeatCycle(0);
         setShowPopup(true);
-        playSound("/sounds/done-woman-voice.mp3");
+        clearInterval(intervalRef.current!);
         document.title = "Time's Up!";
       }
     }
     return () => clearInterval(intervalRef.current!);
-  }, [isRunning, timeLeft, repeat, repeatCount, repeatCycle, initialTime]);
+  }, [isRunning, timeLeft]);
 
   useEffect(() => {
     setInputTime(formatTime(timeLeft));
@@ -102,15 +110,6 @@ const App: React.FC = () => {
     document.body.classList.toggle("light", !darkMode);
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
-
-  useEffect(() => {
-    const now = new Date();
-    const end = new Date(now.getTime() + (repeat ? initialTime * repeatCount : initialTime) * 1000);
-    setTimeRange({
-      start: formatTimeWithSeconds(now),
-      end: formatTimeWithSeconds(end),
-    });
-  }, [repeatCount]);
 
   const startTimer = (seconds: number) => {
     const now = new Date();
@@ -131,6 +130,7 @@ const App: React.FC = () => {
     setTimeLeft(0);
     setRepeatCycle(0);
     setShowPopup(false);
+    clearInterval(intervalRef.current!);
   };
 
   const handleInputBlurOrEnter = () => {
@@ -153,6 +153,13 @@ const App: React.FC = () => {
       const clamped = Math.min(Math.max(parsed, 1), 100);
       setRepeatCount(clamped);
       setRepeatCountInput(clamped.toString());
+
+      const now = new Date();
+      const end = new Date(now.getTime() + initialTime * clamped * 1000);
+      setTimeRange({
+        start: formatTimeWithSeconds(now),
+        end: formatTimeWithSeconds(end),
+      });
     } else {
       setRepeatCountInput("");
     }
