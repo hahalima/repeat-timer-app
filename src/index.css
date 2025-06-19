@@ -1,6 +1,7 @@
 body {
   margin: 0;
   font-family: 'Arial', sans-serif;
+  transition: background-color 0.5s, color 0.5s;
 }
 
 body.dark {
@@ -81,6 +82,8 @@ body.light {
   padding-top: 4rem;
   padding-bottom: 2rem;
   text-align: center;
+  background-color: inherit;
+  color: inherit;
 }
 
 h1 {
