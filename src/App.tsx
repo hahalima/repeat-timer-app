@@ -55,7 +55,7 @@ const App: React.FC = () => {
   const [inputTime, setInputTime] = useState("00:00:00");
   const [showPopup, setShowPopup] = useState(false);
   const [timeRange, setTimeRange] = useState({ start: "", end: "" });
-  const [volume, setVolume] = useState(0.20);
+  const [volume, setVolume] = useState(0.50);
 
   const intervalRef = useRef<number | null>(null);
 
