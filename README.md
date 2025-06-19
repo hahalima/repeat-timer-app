@@ -161,6 +161,7 @@ The default is 1048576. To check the value, use command:
 ## To-Do / Future Ideas
 
 - Known Bug: when timer is running and paused is clicked, the time range doesn't update and will show an incorrect end time when the timer ends.
+- Known Bug: light mode might not work if browser/system default is set to dark mode.
 - Save last timer and repeat settings
 - Add notification support across tabs (with fallback)
 - Visual progress bar
