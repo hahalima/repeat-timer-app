@@ -63,13 +63,10 @@ const App: React.FC = () => {
     const path = overridePath || soundMap[selectedSound];
     const audio = new Audio(process.env.PUBLIC_URL + path);
     audio.volume = volume;
-    audio.addEventListener("canplaythrough", () => {
-      audio.play().catch((err) => console.error("Playback failed:", err));
+
+    audio.play().catch((err) => {
+      console.error("Playback failed:", err);
     });
-    audio.addEventListener("error", () => {
-      console.error("Audio load error:", audio.error);
-    });
-    audio.load();
   };
 
   const startNewInterval = () => {
