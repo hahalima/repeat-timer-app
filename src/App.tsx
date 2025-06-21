@@ -41,7 +41,6 @@ const formatTimeWithSeconds = (date: Date) => {
 
 const App: React.FC = () => {
   const [selectedSound, setSelectedSound] = useState("Wood Knock");
-  const [timeLeft, setTimeLeft] = useState(0);
   const [initialTime, setInitialTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [repeat, setRepeat] = useState(false);
@@ -56,47 +55,65 @@ const App: React.FC = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [timeRange, setTimeRange] = useState({ start: "", end: "" });
   const [volume, setVolume] = useState(0.50);
+  const [timeLeft, setTimeLeft] = useState(0);
 
-  const intervalRef = useRef<number | null>(null);
+  const targetEndRef = useRef<Date | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const repeatCycleRef = useRef(0);
 
   const playSound = (overridePath?: string) => {
     const path = overridePath || soundMap[selectedSound];
     const audio = new Audio(process.env.PUBLIC_URL + path);
     audio.volume = volume;
-
-    audio.play().catch((err) => {
-      console.error("Playback failed:", err);
-    });
+    audio.play().catch((err) => console.error("Playback failed:", err));
   };
 
-  const startNewInterval = () => {
-    clearInterval(intervalRef.current!);
-    intervalRef.current = window.setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-  };
+  const tick = () => {
+    if (!targetEndRef.current) return;
+    const now = new Date();
+    const diff = Math.max(0, Math.round((targetEndRef.current.getTime() - now.getTime()) / 1000));
+    setTimeLeft(diff);
 
-  useEffect(() => {
-    if (isRunning && timeLeft > 0) {
-      startNewInterval();
-    } else if (timeLeft === 0 && isRunning) {
-      if (repeat && repeatCycle + 1 < repeatCount) {
+    if (diff === 0) {
+      const nextCycle = repeatCycleRef.current + 1;
+      if (repeat && nextCycle < repeatCount) {
         playSound();
-        setRepeatCycle((prev) => prev + 1);
-        setTimeLeft(initialTime);
-        startNewInterval();
+        setRepeatCycle(nextCycle);
+        repeatCycleRef.current = nextCycle;
+        const nextEnd = new Date(now.getTime() + initialTime * 1000);
+        targetEndRef.current = nextEnd;
       } else {
-        playSound(); // can remove
+        playSound();
         playSound("/sounds/done-woman-voice.mp3");
         setIsRunning(false);
         setRepeatCycle(0);
+        repeatCycleRef.current = 0;
         setShowPopup(true);
-        clearInterval(intervalRef.current!);
+        targetEndRef.current = null;
         document.title = "Time's Up!";
+        return;
       }
     }
-    return () => clearInterval(intervalRef.current!);
-  }, [isRunning, timeLeft]);
+    rafRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    if (isRunning) {
+      rafRef.current = requestAnimationFrame(tick);
+    } else {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    }
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isRunning]);
 
   useEffect(() => {
     setInputTime(formatTime(timeLeft));
@@ -110,12 +127,15 @@ const App: React.FC = () => {
 
   const startTimer = (seconds: number) => {
     const now = new Date();
-    const end = new Date(now.getTime() + (repeat ? seconds * repeatCount : seconds) * 1000);
+    const totalSeconds = repeat ? seconds * repeatCount : seconds;
+    const end = new Date(now.getTime() + totalSeconds * 1000);
+
+    targetEndRef.current = new Date(now.getTime() + seconds * 1000);
     setTimeRange({
       start: formatTimeWithSeconds(now),
       end: formatTimeWithSeconds(end),
     });
-    setTimeLeft(seconds);
+
     setInitialTime(seconds);
     setRepeatCycle(0);
     setIsRunning(true);
@@ -126,16 +146,18 @@ const App: React.FC = () => {
     setIsRunning(false);
     setTimeLeft(0);
     setRepeatCycle(0);
+    repeatCycleRef.current = 0;
     setShowPopup(false);
-    clearInterval(intervalRef.current!);
+    targetEndRef.current = null;
   };
 
   const handleInputBlurOrEnter = () => {
     const totalSeconds = parseInputTime(inputTime);
     const now = new Date();
-    const end = new Date(now.getTime() + (repeat ? totalSeconds * repeatCount : totalSeconds) * 1000);
-    setTimeLeft(totalSeconds);
+    const end = new Date(now.getTime() + totalSeconds * 1000);
+    targetEndRef.current = end;
     setInitialTime(totalSeconds);
+    setTimeLeft(totalSeconds);
     setTimeRange({
       start: formatTimeWithSeconds(now),
       end: formatTimeWithSeconds(end),
@@ -184,7 +206,7 @@ const App: React.FC = () => {
 
             setTimeout(() => {
               document.body.classList.remove("with-transition");
-            }, 500); // Match CSS transition duration
+            }, 500);
           }}
           className="btn text-sm"
         >
@@ -222,6 +244,7 @@ const App: React.FC = () => {
                 end: formatTimeWithSeconds(end),
               });
               setRepeatCycle(0);
+              repeatCycleRef.current = 0;
               setIsRunning(false);
               setShowPopup(false);
             }}
