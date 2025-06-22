@@ -68,10 +68,15 @@ const App: React.FC = () => {
     audio.play().catch((err) => console.error("Playback failed:", err));
   };
 
-  const tick = () => {
+  useEffect(() => {
+  if (!isRunning || !targetEndRef.current) return;
+
+  const interval = setInterval(() => {
     if (!targetEndRef.current) return;
-    const now = new Date();
-    const diff = Math.max(0, Math.round((targetEndRef.current.getTime() - now.getTime()) / 1000));
+
+    const now = Date.now();
+    const end = targetEndRef.current.getTime();
+    const diff = Math.max(0, Math.round((end - now) / 1000));
     setTimeLeft(diff);
 
     if (diff === 0) {
@@ -80,8 +85,8 @@ const App: React.FC = () => {
         playSound();
         setRepeatCycle(nextCycle);
         repeatCycleRef.current = nextCycle;
-        const nextEnd = new Date(now.getTime() + initialTime * 1000);
-        targetEndRef.current = nextEnd;
+        targetEndRef.current = new Date(Date.now() + initialTime * 1000);
+        setTimeLeft(initialTime); // ✅ Reset visible time immediately
       } else {
         playSound();
         playSound("/sounds/done-woman-voice.mp3");
@@ -91,29 +96,12 @@ const App: React.FC = () => {
         setShowPopup(true);
         targetEndRef.current = null;
         document.title = "Time's Up!";
-        return;
       }
     }
-    rafRef.current = requestAnimationFrame(tick);
-  };
+  }, 1000);
 
-  useEffect(() => {
-    if (isRunning) {
-      rafRef.current = requestAnimationFrame(tick);
-    } else {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    }
-
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [isRunning]);
+  return () => clearInterval(interval);
+}, [isRunning, repeat, repeatCount, initialTime]);
 
   useEffect(() => {
     setInputTime(formatTime(timeLeft));
@@ -127,16 +115,17 @@ const App: React.FC = () => {
 
   const startTimer = (seconds: number) => {
     const now = new Date();
-    const totalSeconds = repeat ? seconds * repeatCount : seconds;
-    const end = new Date(now.getTime() + totalSeconds * 1000);
+    const duration = timeLeft > 0 && timeLeft < seconds ? timeLeft : seconds;
+    const end = new Date(now.getTime() + (repeat ? duration : seconds) * 1000);
 
-    targetEndRef.current = new Date(now.getTime() + seconds * 1000);
+    targetEndRef.current = new Date(now.getTime() + duration * 1000);
+
     setTimeRange({
       start: formatTimeWithSeconds(now),
       end: formatTimeWithSeconds(end),
     });
 
-    setInitialTime(seconds);
+    setInitialTime(duration);
     setRepeatCycle(0);
     setIsRunning(true);
     setShowPopup(false);
