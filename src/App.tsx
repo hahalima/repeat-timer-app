@@ -56,9 +56,9 @@ const App: React.FC = () => {
   const [timeRange, setTimeRange] = useState({ start: "", end: "" });
   const [volume, setVolume] = useState(0.50);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [repeatTimestamps, setRepeatTimestamps] = useState<string[]>([]);
 
   const targetEndRef = useRef<Date | null>(null);
-  const rafRef = useRef<number | null>(null);
   const repeatCycleRef = useRef(0);
 
   const playSound = (overridePath?: string) => {
@@ -69,39 +69,50 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-  if (!isRunning || !targetEndRef.current) return;
+    if (!isRunning || !targetEndRef.current) return;
 
-  const interval = setInterval(() => {
-    if (!targetEndRef.current) return;
+    let timeoutId: NodeJS.Timeout;
 
-    const now = Date.now();
-    const end = targetEndRef.current.getTime();
-    const diff = Math.max(0, Math.round((end - now) / 1000));
-    setTimeLeft(diff);
+    const tick = () => {
+      if (!targetEndRef.current) return;
 
-    if (diff === 0) {
-      const nextCycle = repeatCycleRef.current + 1;
-      if (repeat && nextCycle < repeatCount) {
-        playSound();
-        setRepeatCycle(nextCycle);
-        repeatCycleRef.current = nextCycle;
-        targetEndRef.current = new Date(Date.now() + initialTime * 1000);
-        setTimeLeft(initialTime); // ✅ Reset visible time immediately
+      const now = Date.now();
+      const end = targetEndRef.current.getTime();
+      const diff = Math.max(0, Math.round((end - now) / 1000));
+      setTimeLeft(diff);
+
+      if (diff === 0) {
+        const nextCycle = repeatCycleRef.current + 1;
+
+        if (repeat && nextCycle < repeatCount) {
+          playSound();
+          setRepeatCycle(nextCycle);
+          repeatCycleRef.current = nextCycle;
+
+          const nextEnd = Date.now() + initialTime * 1000;
+          targetEndRef.current = new Date(nextEnd);
+          setTimeLeft(initialTime);
+
+          timeoutId = setTimeout(tick, 100);
+        } else {
+          playSound();
+          playSound("/sounds/done-woman-voice.mp3");
+          setIsRunning(false);
+          setRepeatCycle(0);
+          repeatCycleRef.current = 0;
+          setShowPopup(true);
+          targetEndRef.current = null;
+          document.title = "Time's Up!";
+        }
       } else {
-        playSound();
-        playSound("/sounds/done-woman-voice.mp3");
-        setIsRunning(false);
-        setRepeatCycle(0);
-        repeatCycleRef.current = 0;
-        setShowPopup(true);
-        targetEndRef.current = null;
-        document.title = "Time's Up!";
+        timeoutId = setTimeout(tick, 250); // Refresh more often for accuracy
       }
-    }
-  }, 1000);
+    };
 
-  return () => clearInterval(interval);
-}, [isRunning, repeat, repeatCount, initialTime]);
+    tick(); // Start loop
+
+    return () => clearTimeout(timeoutId);
+  }, [isRunning, repeat, repeatCount, initialTime]);
 
   useEffect(() => {
     setInputTime(formatTime(timeLeft));
@@ -115,17 +126,32 @@ const App: React.FC = () => {
 
   const startTimer = (seconds: number) => {
     const now = new Date();
-    const duration = timeLeft > 0 && timeLeft < seconds ? timeLeft : seconds;
-    const end = new Date(now.getTime() + (repeat ? duration : seconds) * 1000);
 
-    targetEndRef.current = new Date(now.getTime() + duration * 1000);
+    // Make sure we're using per-repeat duration, not total
+    const perRepeatSeconds = seconds;
+    const totalDuration = repeat ? perRepeatSeconds * repeatCount : perRepeatSeconds;
+
+    const start = timeRange.start
+      ? new Date(now.getTime()) // Maintain previous start if set
+      : now;
+
+    const end = new Date(start.getTime() + totalDuration * 1000);
+
+    const timestamps: string[] = [];
+    for (let i = 1; i < repeatCount + 1; i++) {
+      const repeatTime = new Date(start.getTime() + i * perRepeatSeconds * 1000);
+      timestamps.push(formatTimeWithSeconds(repeatTime));
+    }
+    setRepeatTimestamps(timestamps);
+
+    targetEndRef.current = new Date(start.getTime() + perRepeatSeconds * 1000);
 
     setTimeRange({
-      start: formatTimeWithSeconds(now),
+      start: formatTimeWithSeconds(start),
       end: formatTimeWithSeconds(end),
     });
 
-    setInitialTime(duration);
+    setInitialTime(perRepeatSeconds); // ✅ Save per-repeat time
     setRepeatCycle(0);
     setIsRunning(true);
     setShowPopup(false);
@@ -138,6 +164,8 @@ const App: React.FC = () => {
     repeatCycleRef.current = 0;
     setShowPopup(false);
     targetEndRef.current = null;
+    setTimeRange({ start: "", end: "" }); // Optional reset
+    setRepeatTimestamps([]); // Optional reset
   };
 
   const handleInputBlurOrEnter = () => {
@@ -179,16 +207,24 @@ const App: React.FC = () => {
   const presetTimes = [
     { label: "3 sec", value: 3 },
     { label: "1 min", value: 60 },
+    { label: "5 min", value: 5 * 60 },
     { label: "7.5 min", value: 7 * 60 + 30 },
     { label: "10 min", value: 10 * 60 },
     { label: "15 min", value: 15 * 60 },
     { label: "20 min", value: 20 * 60 },  
+    { label: "25 min", value: 25 * 60 },  
     { label: "30 min", value: 30 * 60 },
     { label: "45 min", value: 45 * 60 },
     { label: "50 min", value: 50 * 60 },
     { label: "60 min", value: 60 * 60 },
     { label: "90 min", value: 90 * 60 },
   ];
+
+  const ordinal = (n: number): string => {
+    const suffixes = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+  };
 
   return (
     <div className="app">
@@ -347,9 +383,23 @@ const App: React.FC = () => {
           }}
         >
           <h2>Time's Up</h2>
-          <p>
-            {new Date().toLocaleDateString()} ({timeRange.start} – {timeRange.end})
-          </p>
+          {repeatTimestamps.length > 0 && (
+          <div style={{ 
+            maxHeight: "300px", 
+            overflowY: "auto", 
+            marginTop: "1rem", 
+            textAlign: "left" 
+          }}>
+            <div style={{ marginBottom: "0.5rem" }}>
+              {new Date().toLocaleDateString()} ({timeRange.start} – {timeRange.end})
+            </div>
+            {repeatTimestamps.map((time, i) => (
+              <div key={i}>
+                {`${ordinal(i + 1)} Alarm: ${time}`}
+              </div>
+            ))}
+          </div>
+          )}
           <button className="btn" onClick={() => setShowPopup(false)}>
             Close
           </button>
