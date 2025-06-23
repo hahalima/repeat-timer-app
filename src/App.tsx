@@ -130,12 +130,13 @@ const App: React.FC = () => {
       return;
     }
 
-    document.title = `⏳ ${formatTime(timeLeft)} left`;
+    const cycleInfo = repeat ? ` (${repeatCycle + 1}/${repeatCount})` : "";
+    document.title = `⏳ ${formatTime(timeLeft)} left${cycleInfo}`;
 
     return () => {
       document.title = "Repeat Timer";
     };
-  }, [isRunning, timeLeft]);
+  }, [isRunning, timeLeft, repeat, repeatCycle, repeatCount]);
 
   const startTimer = (seconds: number) => {
     const now = new Date();
