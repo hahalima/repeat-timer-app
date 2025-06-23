@@ -124,6 +124,19 @@ const App: React.FC = () => {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
 
+  useEffect(() => {
+    if (!isRunning) {
+      document.title = "Repeat Timer";
+      return;
+    }
+
+    document.title = `⏳ ${formatTime(timeLeft)} left`;
+
+    return () => {
+      document.title = "Repeat Timer";
+    };
+  }, [isRunning, timeLeft]);
+
   const startTimer = (seconds: number) => {
     const now = new Date();
 
