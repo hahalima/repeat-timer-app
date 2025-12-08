@@ -222,6 +222,7 @@ const App: React.FC = () => {
     { label: "3 sec", value: 3 },
     { label: "1 min", value: 60 },
     { label: "1.5 min", value: 90 },
+    { label: "2 min", value: 2 * 60 },
     { label: "5 min", value: 5 * 60 },
     { label: "7.5 min", value: 7 * 60 + 30 },
     { label: "10 min", value: 10 * 60 },
