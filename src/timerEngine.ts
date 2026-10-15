@@ -1,4 +1,6 @@
 export type TimerSession = {
+  originalStartedAtMs: number;
+  // The countdown anchor moves on resume; the original start remains unchanged.
   startedAtMs: number;
   intervalMs: number;
   repeatCount: number;
@@ -26,6 +28,7 @@ export const createTimerSession = (
   intervalMs: number,
   repeatCount: number
 ): TimerSession => ({
+  originalStartedAtMs: startedAtMs,
   startedAtMs,
   intervalMs,
   repeatCount,

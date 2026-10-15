@@ -55,7 +55,250 @@ describe("App", () => {
   afterEach(() => {
     jest.clearAllTimers();
     jest.useRealTimers();
+    jest.restoreAllMocks();
     localStorage.clear();
+  });
+
+  it("blocks invalid and incomplete durations and normalizes committed sections", () => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "5 min" }));
+    const minutes = screen.getByRole("textbox", { name: "Minutes" });
+    fireEvent.change(minutes, { target: { value: "75" } });
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /\+ Save/ })).toBeDisabled();
+    fireEvent.blur(minutes);
+    expect(screen.getByRole("alert")).toHaveTextContent("Minutes must be between 00 and 59.");
+    fireEvent.keyDown(window, { key: " ", code: "Space" });
+    expect(screen.getByRole("button", { name: /pause/i })).toBeDisabled();
+    fireEvent.change(minutes, { target: { value: "" } });
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    fireEvent.change(minutes, { target: { value: "2" } });
+    fireEvent.blur(minutes);
+    expect(minutes).toHaveValue("02");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start/i })).toBeEnabled();
+    fireEvent.change(minutes, { target: { value: "1e" } });
+    expect(minutes).toHaveValue("02");
+    fireEvent.change(minutes, { target: { value: "" } });
+    fireEvent.blur(minutes);
+    expect(minutes).toHaveValue("00");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+  });
+
+  it("accepts formatted duration paste and keeps rejected paste errors until corrected", () => {
+    installAudioMock();
+    render(<App />);
+    const hours = screen.getByRole("textbox", { name: "Hours" });
+    fireEvent.paste(hours, { clipboardData: { getData: () => "01:15:09" } });
+    expect(hours).toHaveValue("01");
+    expect(screen.getByRole("textbox", { name: "Minutes" })).toHaveValue("15");
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("09");
+    expect(screen.getByRole("button", { name: /start/i })).toBeEnabled();
+    fireEvent.paste(hours, { clipboardData: { getData: () => "00:00:1.5" } });
+    fireEvent.blur(hours);
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid duration");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(hours).toHaveValue("00");
+    expect(screen.getByRole("button", { name: /start/i })).toBeEnabled();
+  });
+
+  it("updates the preview from duration and repeats without accepting an invalid repeat draft", () => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "5 min" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    const repeats = screen.getByRole("textbox", { name: "Repeat count" });
+    fireEvent.change(repeats, { target: { value: "4" } });
+    expect(screen.getByText(/^Total:/)).toHaveTextContent("Total: 00:20:00 (12:00:00 PM – 12:20:00 PM)");
+    fireEvent.change(screen.getByRole("textbox", { name: "Minutes" }), { target: { value: "2" } });
+    expect(screen.getByText(/^Total:/)).toHaveTextContent("Total: 00:08:00 (12:00:00 PM – 12:08:00 PM)");
+    fireEvent.change(repeats, { target: { value: "" } });
+    expect(screen.queryByText(/^Total:/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /\+ Save/ })).toBeDisabled();
+    fireEvent.blur(repeats);
+    expect(screen.getByRole("alert")).toHaveTextContent("between 1 and 100");
+    fireEvent.click(screen.getByRole("button", { name: "30 sec" }));
+    expect(repeats).toHaveValue("");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    fireEvent.change(repeats, { target: { value: "101" } });
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    fireEvent.change(repeats, { target: { value: "2" } });
+    expect(screen.getByText(/^Total:/)).toHaveTextContent("Total: 00:01:00 (12:00:00 PM – 12:01:00 PM)");
+    fireEvent.change(screen.getByRole("textbox", { name: "Seconds" }), { target: { value: "75" } });
+    expect(screen.queryByText(/^Total:/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    expect(screen.getByText(/^Total:/)).toHaveTextContent("Total: 00:00:06 (12:00:00 PM – 12:00:06 PM)");
+  });
+
+  it("shows setup feedback when saving a preset without an active timer", () => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "5 min" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Save 5 min" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Custom preset saved.");
+    fireEvent.click(screen.getByRole("button", { name: "+ Save 5 min" }));
+    expect(screen.getByRole("status")).toHaveTextContent("That time is already saved");
+    advanceClock(4_000);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("keeps popup, history, and alarm times consistent across multiple pauses", () => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Repeat count" }), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+
+    advanceClock(1_000);
+    fireEvent.click(screen.getByRole("button", { name: /pause/i }));
+    advanceClock(5_000);
+    fireEvent.click(screen.getByRole("button", { name: /resume/i }));
+    advanceClock(3_000); // The first alarm has fired at 12:00:08.
+    fireEvent.click(screen.getByRole("button", { name: /pause/i }));
+    advanceClock(10_000);
+    fireEvent.click(screen.getByRole("button", { name: /resume/i }));
+    expect(screen.getByText(/12:00:00 PM – 12:00:24 PM/)).toBeInTheDocument();
+    advanceClock(5_100);
+
+    const popup = screen.getByRole("heading", { name: "Time's Up" }).parentElement!;
+    expect(popup.querySelector(".completion-details")).toHaveTextContent(
+      "Started12:00:00 PMScheduled End12:00:24 PMCompleted12:00:24 PM"
+    );
+    const alarms = popup.querySelector(".alarm-list")!;
+    expect(alarms).toHaveTextContent("1st Alarm12:00:08 PM");
+    expect(alarms).toHaveTextContent("2nd Alarm12:00:21 PM");
+    expect(alarms).toHaveTextContent("3rd Alarm12:00:24 PM");
+    expect(JSON.parse(localStorage.getItem(SESSION_HISTORY_KEY) || "[]")[0]).toMatchObject({
+      startedAt: "12:00:00 PM",
+      scheduledEnd: "12:00:24 PM",
+      completedAt: "12:00:24 PM",
+      totalSeconds: 9,
+      repeatCount: 3,
+    });
+  });
+
+  it.each(["Close", "Escape"])("clears the completed setup on %s and supports Use Again", (dismissal) => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Save 3 sec" }));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "Magic Ring" } });
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "0.75" } });
+    fireEvent.click(screen.getByRole("button", { name: /light mode/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Repeat count" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    advanceClock(6_100);
+    expect(screen.getByRole("heading", { name: "Time's Up" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    if (dismissal === "Close") {
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    } else {
+      fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    }
+
+    expect(screen.queryByRole("heading", { name: "Time's Up" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("00");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /repeat/i })).not.toBeChecked();
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveValue("Magic Ring");
+    expect(screen.getByRole("slider")).toHaveValue("0.75");
+    expect(document.body).toHaveClass("light");
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")).toMatchObject({
+      initialTime: 0, repeat: false, repeatCount: 1,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Again" }));
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("03");
+    expect(screen.getByRole("textbox", { name: "Repeat count" })).toHaveValue("2");
+    expect(screen.getByRole("button", { name: /start/i })).toBeEnabled();
+  });
+
+  it.each([false, true])("clears setup when stopping a timer (paused: %s)", (paused) => {
+    installAudioMock();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Repeat count" }), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    advanceClock(1_000);
+    if (paused) fireEvent.click(screen.getByRole("button", { name: /pause/i }));
+    fireEvent.click(screen.getByRole("button", { name: /stop/i }));
+    fireEvent.keyDown(window, { key: " ", code: "Space" });
+    advanceClock(20_000);
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("00");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /repeat/i })).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")).toMatchObject({
+      initialTime: 0, repeat: false, repeatCount: 1,
+    });
+    expect(screen.queryByRole("heading", { name: "Time's Up" })).not.toBeInTheDocument();
+    expect(localStorage.getItem(SESSION_HISTORY_KEY)).toBe("[]");
+  });
+
+  it.each(["invalid-json", "null", "[]", '"false"'])("falls back safely for malformed saved data: %s", (saved) => {
+    installAudioMock();
+    [SETTINGS_KEY, CUSTOM_PRESETS_KEY, SESSION_HISTORY_KEY, "darkMode"].forEach((key) =>
+      localStorage.setItem(key, saved)
+    );
+    render(<App />);
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("00");
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(document.body).toHaveClass("dark");
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    advanceClock(3_100);
+    expect(screen.getByRole("heading", { name: "Time's Up" })).toBeInTheDocument();
+  });
+
+  it("rejects invalid field types and skips malformed entries without losing valid entries", () => {
+    installAudioMock();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      initialTime: "90", repeat: "false", repeatCount: null,
+      volume: false, selectedSound: "toString", keepAwake: "false",
+    }));
+    localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify([
+      null, false, { seconds: 0.5 }, { seconds: "60" }, { id: "valid", seconds: 120, label: "Focus" },
+    ]));
+    localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify([
+      null, false, { intervalSeconds: 0.5, totalSeconds: 0.5, completedAtMs: fixedNow.getTime() },
+      { id: "valid", intervalSeconds: 60, totalSeconds: 60, completedAtMs: fixedNow.getTime() },
+    ]));
+    render(<App />);
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("00");
+    expect(screen.getByRole("checkbox", { name: /repeat/i })).not.toBeChecked();
+    expect(screen.getByRole("combobox")).toHaveValue("Wood Knock");
+    expect(screen.getByRole("slider")).toHaveValue("0.5");
+    expect(screen.getByRole("button", { name: "Focus" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Use Again" })).toHaveLength(1);
+  });
+
+  it.each(["reads and writes", "writes"])("continues working when storage rejects %s", (failures) => {
+    installAudioMock();
+    if (failures === "reads and writes") {
+      jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("Unavailable"); });
+    }
+    jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Quota exceeded"); });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Save 3 sec" }));
+    fireEvent.click(screen.getByRole("button", { name: /light mode/i }));
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    advanceClock(3_100);
+    expect(screen.getByRole("heading", { name: "Time's Up" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use Again" })).toBeInTheDocument();
+    expect(document.body).toHaveClass("light");
   });
 
   it("completes a one-shot timer, plays completion sounds, and records session history", () => {
@@ -92,23 +335,23 @@ describe("App", () => {
 
     render(<App />);
 
-    const timeInput = screen.getByPlaceholderText("HH:MM:SS");
+    const timeInput = screen.getByRole("textbox", { name: "Seconds" });
     fireEvent.click(screen.getByRole("button", { name: "3 sec" }));
     fireEvent.click(screen.getByRole("button", { name: /start/i }));
 
     advanceClock(1_000);
-    expect(timeInput).toHaveValue("00:00:02");
+    expect(timeInput).toHaveValue("02");
 
     fireEvent.click(screen.getByRole("button", { name: /pause/i }));
     advanceClock(5_000);
-    expect(timeInput).toHaveValue("00:00:02");
+    expect(timeInput).toHaveValue("02");
     expect(document.title).toBe("Paused - 00:00:02 left");
 
     fireEvent.click(screen.getByRole("button", { name: /resume/i }));
     advanceClock(1_000);
 
     expect(screen.queryByRole("heading", { name: "Time's Up" })).not.toBeInTheDocument();
-    expect(timeInput).toHaveValue("00:00:01");
+    expect(timeInput).toHaveValue("01");
 
     advanceClock(1_100);
     expect(screen.getByRole("heading", { name: "Time's Up" })).toBeInTheDocument();
@@ -166,7 +409,8 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByPlaceholderText("HH:MM:SS")).toHaveValue("00:01:30");
+    expect(screen.getByRole("textbox", { name: "Minutes" })).toHaveValue("01");
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("30");
     expect(screen.getByRole("checkbox", { name: /repeat/i })).toBeChecked();
     expect(screen.getByDisplayValue("100")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Wood Knock")).toBeInTheDocument();
@@ -240,11 +484,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "5 min" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Save 5 min" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /repeat/i }));
-    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "4" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Repeat count" }), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Clear timer setup" }));
 
     expect(confirmSpy).toHaveBeenCalledWith("Clear timer, repeat settings, and custom presets?");
-    expect(screen.getByPlaceholderText("HH:MM:SS")).toHaveValue("00:00:00");
+    expect(screen.getByRole("textbox", { name: "Seconds" })).toHaveValue("00");
     expect(screen.getByRole("checkbox", { name: /repeat/i })).not.toBeChecked();
     expect(screen.queryByText("Custom")).not.toBeInTheDocument();
     expect(localStorage.getItem(CUSTOM_PRESETS_KEY)).toBe("[]");
@@ -262,8 +506,8 @@ describe("App", () => {
 
     render(<App />);
 
-    const timeInput = screen.getByPlaceholderText("HH:MM:SS");
-    fireEvent.change(timeInput, { target: { value: "00:00:03" } });
+    const timeInput = screen.getByRole("textbox", { name: "Seconds" });
+    fireEvent.change(timeInput, { target: { value: "03" } });
     fireEvent.keyDown(timeInput, { key: "Enter", code: "Enter" });
 
     timeInput.focus();
@@ -280,7 +524,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /pause/i })).toBeEnabled();
 
     fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
-    expect(timeInput).toHaveValue("00:00:00");
+    expect(timeInput).toHaveValue("00");
     expect(screen.getByRole("button", { name: /pause/i })).toBeDisabled();
   });
 });

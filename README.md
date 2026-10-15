@@ -13,11 +13,16 @@ Demo: [https://hahalima.github.io/repeat-timer-app/](https://hahalima.github.io/
 
 ## Features
 
-- Set time via editable `HH:MM:SS` text input
+- Set time via numeric hours, minutes, and seconds sections with fixed `HH:MM:SS` separators
+- Validate durations from 1 second to `99:59:59`, with inline errors, numeric entry, and formatted duration paste
 - One-click built-in presets, including 3 sec, 30 sec, 1 min, 5 min, 30 min, and more
 - Save, edit, reorder, and delete custom time presets
 - Start / Pause / Stop buttons with icons
+- Pause/resume preserves the actual start time and updates the expected finish and remaining alarm schedule
+- Closing the completion popup or stopping clears duration and repeat settings; use a preset or history's Use Again to start another session
 - Repeat mode with customizable repeat count (1–100)
+- Disable Start and Save Preset for incomplete or invalid setups, and keep the total duration and finish-time preview in sync with edits
+- Show setup feedback, including preset saves and duplicates, even before a timer starts
 - Choose from ~6 different end-of-interval sounds (with volume control)
 - Light/Dark mode toggle (remembers preference via `localStorage`)
 - Keep Awake toggle for supported browsers
@@ -26,6 +31,7 @@ Demo: [https://hahalima.github.io/repeat-timer-app/](https://hahalima.github.io/
 - Recent session history with use-again, per-session delete, and clear controls
 - Clear setup control for resetting timer duration, repeats, and custom presets
 - Remembers timer settings, custom presets, session history, and theme via `localStorage`
+- Recovers safely from malformed saved data and keeps working in memory when browser storage is unavailable or full
 - Shows total duration and time range
 - End-of-session popup with friendly “Done” voice and time summary
 - Volume slider with tooltip and percent indicator
@@ -101,8 +107,12 @@ repeat-timer-app/
 ├── src/
 │   ├── App.tsx
 │   ├── App.test.tsx
+│   ├── DurationInput.tsx
+│   ├── storage.ts
 │   ├── timerEngine.ts
 │   ├── timerEngine.test.ts
+│   ├── timerInput.ts
+│   ├── timerInput.test.ts
 │   ├── index.tsx
 │   └── index.css
 ├── playwright.config.ts

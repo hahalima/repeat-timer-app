@@ -10,6 +10,7 @@ describe("timerEngine", () => {
     const session = createTimerSession(1_000, 5_000, 3);
 
     expect(session).toEqual({
+      originalStartedAtMs: 1_000,
       startedAtMs: 1_000,
       intervalMs: 5_000,
       repeatCount: 3,
@@ -130,6 +131,7 @@ describe("timerEngine", () => {
     expect(paused.currentCycleIndex).toBe(0);
     expect(paused.pausedRemainingMs).toBe(6_000);
     expect(resumed.startedAtMs).toBe(16_000);
+    expect(resumed.originalStartedAtMs).toBe(0);
     expect(resumed.pausedRemainingMs).toBeNull();
 
     const snapshot = getTimerSnapshot(resumed, 23_000);
@@ -145,6 +147,16 @@ describe("timerEngine", () => {
 
     expect(paused.currentCycleIndex).toBe(1);
     expect(paused.pausedRemainingMs).toBe(5_000);
+  });
+
+  it("preserves the original start through multiple pauses in a repeated session", () => {
+    const running = createTimerSession(1_000, 5_000, 3);
+    const firstResume = resumeTimerSession(pauseTimerSession(running, 3_000), 13_000);
+    const secondResume = resumeTimerSession(pauseTimerSession(firstResume, 18_000), 38_000);
+
+    expect(secondResume.originalStartedAtMs).toBe(1_000);
+    expect(secondResume.startedAtMs).toBe(31_000);
+    expect(getTimerSnapshot(secondResume, 46_000).isComplete).toBe(true);
   });
 
   it("returns the same session when resuming a session that is not paused", () => {

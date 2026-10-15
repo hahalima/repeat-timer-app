@@ -1,3 +1,7 @@
+html {
+  font-size: 90%;
+}
+
 body {
   margin: 0;
   font-family: 'Arial', sans-serif;
@@ -125,7 +129,7 @@ h1 {
 .preset-panel {
   display: grid;
   gap: 0.8rem;
-  width: min(620px, calc(100vw - 2rem));
+  width: min(38.75rem, calc(100vw - 2rem));
   margin-bottom: 1rem;
 }
 
@@ -152,7 +156,7 @@ h1 {
 
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
   gap: 0.5rem;
 }
 
@@ -222,7 +226,7 @@ body.light .save-preset-button:hover {
   justify-content: center;
   gap: 0.45rem;
   min-height: 2.15rem;
-  min-width: 76px;
+  min-width: 4.75rem;
   padding: 0.35rem 0.55rem;
   color: #bbf7d0;
   background-color: transparent;
@@ -393,37 +397,87 @@ body.light .preset-save-button {
   }
 }
 
+.duration-field {
+  max-width: calc(100vw - 2rem);
+  margin-bottom: 1rem;
+}
+
 .time-input {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 8rem;
   font-size: 1.5rem;
   text-align: center;
   padding: 0.5rem;
-  margin-bottom: 1rem;
   border: 2px solid #ccc;
   border-radius: 0.4rem;
+  background-color: #fff;
+  color: #000;
 }
 
-.time-input:focus {
-  outline: none;
+.time-input:focus-within {
   border-color: #2563eb;
 }
 
-.time-input:disabled {
+.time-input input {
+  width: 2ch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.time-separator {
+  width: 0.35em;
+}
+
+.time-input:has(input[aria-invalid="true"]) {
+  border-color: #dc2626;
+}
+
+.time-input input:disabled {
   opacity: 1;
   cursor: not-allowed;
 }
 
-body.dark .time-input:disabled {
+body.dark .time-input[aria-disabled="true"] {
   background-color: #2b2b2b;
   border-color: #6b7280;
   color: #fff;
   -webkit-text-fill-color: #fff;
 }
 
-body.light .time-input:disabled {
+body.light .time-input[aria-disabled="true"] {
   background-color: #f3f4f6;
   color: #111827;
   -webkit-text-fill-color: #111827;
+}
+
+.validation-error {
+  max-width: min(35rem, calc(100vw - 2rem));
+  margin: 0.4rem auto 0.8rem;
+  color: #fca5a5;
+  font-size: 0.875rem;
+}
+
+body.light .validation-error {
+  color: #b91c1c;
+}
+
+.repeat-count-input[aria-invalid="true"] {
+  outline: 2px solid #dc2626;
+}
+
+.setup-status {
+  width: min(27.5rem, calc(100vw - 2rem));
 }
 
 .top-right-toggle {
@@ -452,7 +506,7 @@ button[disabled] {
 }
 
 .timer-status {
-  width: min(440px, calc(100vw - 2rem));
+  width: min(27.5rem, calc(100vw - 2rem));
   margin-bottom: 1.25rem;
 }
 
@@ -539,12 +593,12 @@ body.light .status-message {
 }
 
 .repeat-count-input {
-  width: 60px;
+  width: 3.75rem;
   padding: 0.25rem;
 }
 
 .total-summary {
-  max-width: min(560px, calc(100vw - 2rem));
+  max-width: min(35rem, calc(100vw - 2rem));
 }
 
 .select-input {
@@ -553,11 +607,11 @@ body.light .status-message {
 }
 
 .volume-input {
-  width: 200px;
+  width: 12.5rem;
 }
 
 .volume-value {
-  width: 40px;
+  width: 2.5rem;
   font-size: 0.875rem;
   text-align: right;
 }
@@ -565,7 +619,7 @@ body.light .status-message {
 .history-panel {
   display: grid;
   gap: 0.75rem;
-  width: min(620px, calc(100vw - 2rem));
+  width: min(38.75rem, calc(100vw - 2rem));
   margin: 0.25rem 0 1.25rem;
   padding: 0.9rem;
   border: 1px solid #374151;
@@ -602,7 +656,7 @@ body.light .history-panel {
 
 .history-item {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(135px, 0.85fr) auto 2rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(8.4375rem, 0.85fr) auto 2rem;
   align-items: center;
   gap: 0.75rem;
   padding-top: 0.55rem;
@@ -765,7 +819,7 @@ body.light .toggle-button-active {
   position: absolute;
   left: 50%;
   bottom: calc(100% + 0.5rem);
-  width: min(290px, calc(100vw - 2rem));
+  width: min(18.125rem, calc(100vw - 2rem));
   padding: 0.65rem 0.75rem;
   color: #f9fafb;
   background-color: #111827;
@@ -821,7 +875,8 @@ body.light .control-tooltip {
 }
 
 .shortcut-modal {
-  width: min(360px, calc(100vw - 2rem));
+  box-sizing: border-box;
+  width: min(24.5rem, calc(100vw - 2rem));
   padding: 1rem;
   color: #f9fafb;
   background-color: #222;
@@ -899,11 +954,11 @@ body.light kbd {
 
   .preset-panel,
   .history-panel {
-    width: min(760px, calc(100vw - 4rem));
+    width: min(47.5rem, calc(100vw - 4rem));
   }
 
   .preset-grid {
-    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(5.875rem, 1fr));
     gap: 0.65rem;
   }
 
@@ -914,7 +969,7 @@ body.light kbd {
   }
 
   .custom-preset-btn {
-    min-width: 94px;
+    min-width: 5.875rem;
     padding: 0.55rem 1rem;
   }
 
@@ -957,12 +1012,12 @@ body.light kbd {
   }
 
   .select-input {
-    min-width: 170px;
+    min-width: 10.625rem;
     padding: 0.6rem 0.7rem;
   }
 
   .volume-input {
-    width: 260px;
+    width: 16.25rem;
   }
 
   .history-panel {
@@ -981,11 +1036,11 @@ body.light kbd {
 
   .btn-group {
     width: 100%;
-    max-width: 360px;
+    max-width: 22.5rem;
   }
 
   .btn-group .btn {
-    flex: 1 1 96px;
+    flex: 1 1 6rem;
     justify-content: center;
   }
 
@@ -1004,7 +1059,7 @@ body.light kbd {
 
   .settings-row {
     width: 100%;
-    max-width: 360px;
+    max-width: 22.5rem;
     align-items: stretch;
   }
 
@@ -1084,8 +1139,9 @@ body.light kbd {
   position: fixed;
   top: 30%;
   left: 50%;
-  width: min(440px, calc(100vw - 2rem));
-  max-height: min(70vh, 620px);
+  box-sizing: border-box;
+  width: min(31.5rem, calc(100vw - 2rem));
+  max-height: min(70vh, 38.75rem);
   overflow-y: auto;
   transform: translate(-50%, -30%);
   padding: 2rem;
@@ -1137,7 +1193,7 @@ body.light .completion-popup {
 }
 
 .alarm-list {
-  max-height: 260px;
+  max-height: 16.25rem;
   overflow-y: auto;
   margin-top: 1rem;
   padding-top: 0.75rem;

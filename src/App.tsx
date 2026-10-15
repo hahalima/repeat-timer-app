@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
+import { readStoredJson, writeStoredJson } from "./storage";
+import DurationInput from "./DurationInput";
+import { MAX_INTERVAL_SECONDS, validateDuration, validateRepeatCount } from "./timerInput";
 import {
   FaCheck,
   FaEdit,
@@ -114,116 +117,101 @@ const formatPresetLabel = (seconds: number) => {
 
 const normalizePresetLabel = (label: string) => label.trim().replace(/\s+/g, " ").slice(0, 24);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isKnownSound = (value: unknown): value is string =>
+  typeof value === "string" && Object.prototype.hasOwnProperty.call(soundMap, value);
+
 const loadTimerSettings = (): TimerSettings => {
-  try {
-    const saved = localStorage.getItem(SETTINGS_KEY);
-    if (!saved) return defaultSettings;
+  const parsed = readStoredJson(SETTINGS_KEY);
+  if (!isRecord(parsed)) return defaultSettings;
+  const { initialTime, repeatCount, volume } = parsed;
 
-    const parsed = JSON.parse(saved) as Partial<TimerSettings>;
-    const initialTime = Number(parsed.initialTime);
-    const repeatCount = Number(parsed.repeatCount);
-    const volume = Number(parsed.volume);
-    const selectedSound =
-      parsed.selectedSound && soundMap[parsed.selectedSound]
-        ? parsed.selectedSound
-        : defaultSettings.selectedSound;
-
-    return {
-      initialTime: Number.isFinite(initialTime) && initialTime > 0 ? Math.floor(initialTime) : 0,
-      repeat: Boolean(parsed.repeat),
-      repeatCount: Number.isFinite(repeatCount) ? clampNumber(Math.floor(repeatCount), 1, 100) : 1,
-      selectedSound,
-      volume: Number.isFinite(volume) ? clampNumber(volume, 0, 1) : defaultSettings.volume,
-      keepAwake: Boolean(parsed.keepAwake),
-    };
-  } catch {
-    return defaultSettings;
-  }
+  return {
+    initialTime: isFiniteNumber(initialTime) && initialTime <= MAX_INTERVAL_SECONDS && initialTime > 0
+      ? Math.floor(initialTime) : 0,
+    repeat: parsed.repeat === true,
+    repeatCount: isFiniteNumber(repeatCount) ? clampNumber(Math.floor(repeatCount), 1, 100) : 1,
+    selectedSound: isKnownSound(parsed.selectedSound) ? parsed.selectedSound : defaultSettings.selectedSound,
+    volume: isFiniteNumber(volume) ? clampNumber(volume, 0, 1) : defaultSettings.volume,
+    keepAwake: parsed.keepAwake === true,
+  };
 };
 
 const loadCustomPresets = (): CustomPreset[] => {
-  try {
-    const saved = localStorage.getItem(CUSTOM_PRESETS_KEY);
-    if (!saved) return [];
+  const parsed = readStoredJson(CUSTOM_PRESETS_KEY);
+  if (!Array.isArray(parsed)) return [];
 
-    const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((preset): CustomPreset | null => {
+      if (!isRecord(preset)) return null;
+      const seconds = preset.seconds;
+      const label = typeof preset.label === "string" ? preset.label.trim() : "";
 
-    return parsed
-      .map((preset): CustomPreset | null => {
-        const seconds = Number(preset.seconds);
-        const label = typeof preset.label === "string" ? preset.label.trim() : "";
+      if (!isFiniteNumber(seconds) || Math.floor(seconds) <= 0 || seconds > MAX_INTERVAL_SECONDS) {
+        return null;
+      }
 
-        if (!Number.isFinite(seconds) || seconds <= 0) {
-          return null;
-        }
+      const safeSeconds = Math.floor(seconds);
 
-        const safeSeconds = Math.floor(seconds);
-
-        return {
-          id: typeof preset.id === "string" ? preset.id : createStoredId(),
-          label: (label || formatPresetLabel(safeSeconds)).slice(0, 24),
-          seconds: safeSeconds,
-        };
-      })
-      .filter((preset): preset is CustomPreset => preset !== null)
-      .slice(0, MAX_CUSTOM_PRESETS);
-  } catch {
-    return [];
-  }
+      return {
+        id: typeof preset.id === "string" ? preset.id : createStoredId(),
+        label: (label || formatPresetLabel(safeSeconds)).slice(0, 24),
+        seconds: safeSeconds,
+      };
+    })
+    .filter((preset): preset is CustomPreset => preset !== null)
+    .slice(0, MAX_CUSTOM_PRESETS);
 };
 
 const loadSessionHistory = (): SessionHistoryItem[] => {
-  try {
-    const saved = localStorage.getItem(SESSION_HISTORY_KEY);
-    if (!saved) return [];
+  const parsed = readStoredJson(SESSION_HISTORY_KEY);
+  if (!Array.isArray(parsed)) return [];
 
-    const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item): SessionHistoryItem | null => {
+      if (!isRecord(item)) return null;
+      const { completedAtMs, intervalSeconds, totalSeconds, repeatCount } = item;
 
-    return parsed
-      .map((item): SessionHistoryItem | null => {
-        const completedAtMs = Number(item.completedAtMs);
-        const intervalSeconds = Number(item.intervalSeconds);
-        const totalSeconds = Number(item.totalSeconds);
-        const repeatCount = Number(item.repeatCount);
+      if (
+        !isFiniteNumber(completedAtMs) ||
+        !isFiniteNumber(intervalSeconds) ||
+        Math.floor(intervalSeconds) <= 0 ||
+        intervalSeconds > MAX_INTERVAL_SECONDS ||
+        !isFiniteNumber(totalSeconds) ||
+        Math.floor(totalSeconds) <= 0 ||
+        !Number.isSafeInteger(Math.floor(totalSeconds))
+      ) {
+        return null;
+      }
 
-        if (
-          !Number.isFinite(completedAtMs) ||
-          !Number.isFinite(intervalSeconds) ||
-          intervalSeconds <= 0 ||
-          !Number.isFinite(totalSeconds) ||
-          totalSeconds <= 0
-        ) {
-          return null;
-        }
-
-        return {
-          id: typeof item.id === "string" ? item.id : createStoredId(),
-          completedAtMs,
-          startedAt: typeof item.startedAt === "string" ? item.startedAt : "",
-          scheduledEnd: typeof item.scheduledEnd === "string" ? item.scheduledEnd : "",
-          completedAt: typeof item.completedAt === "string" ? item.completedAt : "",
-          intervalSeconds: Math.floor(intervalSeconds),
-          totalSeconds: Math.floor(totalSeconds),
-          repeatCount: Number.isFinite(repeatCount)
-            ? clampNumber(Math.floor(repeatCount), 1, 100)
-            : 1,
-          selectedSound:
-            typeof item.selectedSound === "string" && soundMap[item.selectedSound]
-              ? item.selectedSound
-              : defaultSettings.selectedSound,
-          caughtUpIntervals: Number.isFinite(Number(item.caughtUpIntervals))
-            ? Math.max(0, Math.floor(Number(item.caughtUpIntervals)))
-            : 0,
-        };
-      })
-      .filter((item): item is SessionHistoryItem => item !== null)
-      .sort((a, b) => b.completedAtMs - a.completedAtMs)
-      .slice(0, MAX_SESSION_HISTORY);
-  } catch {
-    return [];
-  }
+      return {
+        id: typeof item.id === "string" ? item.id : createStoredId(),
+        completedAtMs,
+        startedAt: typeof item.startedAt === "string" ? item.startedAt : "",
+        scheduledEnd: typeof item.scheduledEnd === "string" ? item.scheduledEnd : "",
+        completedAt: typeof item.completedAt === "string" ? item.completedAt : "",
+        intervalSeconds: Math.floor(intervalSeconds),
+        totalSeconds: Math.floor(totalSeconds),
+        repeatCount: isFiniteNumber(repeatCount)
+          ? clampNumber(Math.floor(repeatCount), 1, 100)
+          : 1,
+        selectedSound:
+          isKnownSound(item.selectedSound)
+            ? item.selectedSound
+            : defaultSettings.selectedSound,
+        caughtUpIntervals: isFiniteNumber(item.caughtUpIntervals)
+          ? Math.max(0, Math.floor(item.caughtUpIntervals))
+          : 0,
+      };
+    })
+    .filter((item): item is SessionHistoryItem => item !== null)
+    .sort((a, b) => b.completedAtMs - a.completedAtMs)
+    .slice(0, MAX_SESSION_HISTORY);
 };
 
 const formatTime = (seconds: number) => {
@@ -235,22 +223,6 @@ const formatTime = (seconds: number) => {
   const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
   const secs = (seconds % 60).toString().padStart(2, "0");
   return `${hrs}:${mins}:${secs}`;
-};
-
-const parseInputTime = (timeStr: string): number => {
-  const parts = timeStr.split(":").map((part) => Number(part.trim()));
-  if (parts.some((part) => !Number.isFinite(part) || part < 0)) {
-    return 0;
-  }
-
-  if (parts.length === 3) {
-    const [hrs, mins, secs] = parts;
-    return hrs * 3600 + mins * 60 + secs;
-  } else if (parts.length === 2) {
-    const [mins, secs] = parts;
-    return mins * 60 + secs;
-  }
-  return 0;
 };
 
 const formatTimeWithSeconds = (date: Date) => {
@@ -276,10 +248,14 @@ const App: React.FC = () => {
   );
   const [repeatCycle, setRepeatCycle] = useState(0);
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem("darkMode");
-    return saved ? Boolean(JSON.parse(saved)) : true;
+    const saved = readStoredJson("darkMode");
+    return typeof saved === "boolean" ? saved : true;
   });
   const [inputTime, setInputTime] = useState(formatTime(initialSettings.current.initialTime));
+  const [durationTouched, setDurationTouched] = useState(false);
+  const [durationPasteError, setDurationPasteError] = useState("");
+  const [repeatTouched, setRepeatTouched] = useState(false);
+  const [repeatPasteError, setRepeatPasteError] = useState("");
   const [showPopup, setShowPopup] = useState(false);
   const [timeRange, setTimeRange] = useState({ start: "", end: "" });
   const [volume, setVolume] = useState(initialSettings.current.volume);
@@ -328,15 +304,15 @@ const App: React.FC = () => {
       keepAwake,
     };
 
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    writeStoredJson(SETTINGS_KEY, settings);
   }, [initialTime, repeat, repeatCount, selectedSound, volume, keepAwake]);
 
   useEffect(() => {
-    localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(customPresets));
+    writeStoredJson(CUSTOM_PRESETS_KEY, customPresets);
   }, [customPresets]);
 
   useEffect(() => {
-    localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(sessionHistory));
+    writeStoredJson(SESSION_HISTORY_KEY, sessionHistory);
   }, [sessionHistory]);
 
   const getSoundUrl = useCallback((path: string) => {
@@ -445,6 +421,7 @@ const App: React.FC = () => {
     session.currentCycleIndex = snapshot.currentCycleIndex;
     setRepeatCycle(snapshot.currentCycleIndex);
     setTimeLeft(Math.ceil(snapshot.remainingMs / 1000));
+    setInputTime(formatTime(Math.ceil(snapshot.remainingMs / 1000)));
     setIntervalProgress(snapshot.intervalProgress);
     setTotalProgress(snapshot.totalProgress);
 
@@ -473,7 +450,7 @@ const App: React.FC = () => {
         {
           id: createStoredId(),
           completedAtMs: completedDate.getTime(),
-          startedAt: formatTimeWithSeconds(new Date(session.startedAtMs)),
+          startedAt: formatTimeWithSeconds(new Date(session.originalStartedAtMs)),
           scheduledEnd: formatTimeWithSeconds(new Date(session.startedAtMs + totalSeconds * 1000)),
           completedAt: completedAtLabel,
           intervalSeconds,
@@ -554,12 +531,29 @@ const App: React.FC = () => {
 
   const hasActiveSession = timerSessionRef.current !== null;
   const isPaused = hasActiveSession && !isRunning && timerSessionRef.current?.pausedRemainingMs !== null;
-  const canEditTimer = !hasActiveSession;
-  const canStartTimer = !isRunning && initialTime > 0;
+  const canEditTimer = !hasActiveSession && !showPopup;
+  const durationValidation = validateDuration(inputTime);
+  const repeatValidation = validateRepeatCount(repeatCountInput);
+  const validDurationSeconds = durationValidation.seconds ?? 0;
+  const hasValidSetup = validDurationSeconds > 0 && !durationPasteError &&
+    (!repeat || (repeatValidation.count !== null && !repeatPasteError));
+  const durationError = durationPasteError || (durationTouched ? durationValidation.error : "");
+  const repeatError = repeatPasteError || (repeatTouched ? repeatValidation.error : "");
+  const canStartTimer = !isRunning && !showPopup && (isPaused || hasValidSetup);
 
   useEffect(() => {
-    setInputTime(formatTime(timeLeft));
-  }, [timeLeft]);
+    if (!canEditTimer) return;
+    if (!hasValidSetup) {
+      setTimeRange({ start: "", end: "" });
+      return;
+    }
+    const now = new Date();
+    const totalSeconds = validDurationSeconds * (repeat ? repeatCount : 1);
+    setTimeRange({
+      start: formatTimeWithSeconds(now),
+      end: formatTimeWithSeconds(new Date(now.getTime() + totalSeconds * 1000)),
+    });
+  }, [canEditTimer, hasValidSetup, validDurationSeconds, repeat, repeatCount]);
 
   useEffect(() => {
     return () => {
@@ -572,7 +566,7 @@ const App: React.FC = () => {
   useEffect(() => {
     document.body.classList.toggle("dark", darkMode);
     document.body.classList.toggle("light", !darkMode);
-    localStorage.setItem("darkMode", JSON.stringify(darkMode));
+    writeStoredJson("darkMode", darkMode);
   }, [darkMode]);
 
   useEffect(() => {
@@ -609,13 +603,25 @@ const App: React.FC = () => {
     const pausedSession = timerSessionRef.current;
     if (typeof pausedSession?.pausedRemainingMs === "number") {
       preloadCurrentSounds();
-      timerSessionRef.current = resumeTimerSession(pausedSession, Date.now());
+      const resumedSession = resumeTimerSession(pausedSession, Date.now());
+      timerSessionRef.current = resumedSession;
+      setTimeRange({
+        start: formatTimeWithSeconds(new Date(resumedSession.originalStartedAtMs)),
+        end: formatTimeWithSeconds(new Date(
+          resumedSession.startedAtMs + resumedSession.intervalMs * resumedSession.repeatCount
+        )),
+      });
+      setRepeatTimestamps((timestamps) => timestamps.map((timestamp, index) =>
+        index < resumedSession.currentCycleIndex ? timestamp : formatTimeWithSeconds(new Date(
+          resumedSession.startedAtMs + (index + 1) * resumedSession.intervalMs
+        ))
+      ));
       setIsRunning(true);
       setShowPopup(false);
       return;
     }
 
-    if (!Number.isFinite(seconds) || seconds <= 0) {
+    if (!hasValidSetup || !Number.isInteger(seconds) || seconds <= 0 || seconds > MAX_INTERVAL_SECONDS) {
       return;
     }
 
@@ -651,6 +657,7 @@ const App: React.FC = () => {
 
     setInitialTime(perRepeatSeconds); // ✅ Save per-repeat time
     setTimeLeft(perRepeatSeconds);
+    setInputTime(formatTime(perRepeatSeconds));
     setRepeatCycle(0);
     setIntervalProgress(0);
     setTotalProgress(0);
@@ -679,6 +686,7 @@ const App: React.FC = () => {
     timerSessionRef.current = pauseTimerSession(session, Date.now());
     setRepeatCycle(snapshot.currentCycleIndex);
     setTimeLeft(Math.ceil(snapshot.remainingMs / 1000));
+    setInputTime(formatTime(Math.ceil(snapshot.remainingMs / 1000)));
     setIntervalProgress(snapshot.intervalProgress);
     setTotalProgress(snapshot.totalProgress);
     setIsRunning(false);
@@ -686,7 +694,16 @@ const App: React.FC = () => {
 
   const stopTimer = () => {
     setIsRunning(false);
+    setInitialTime(0);
     setTimeLeft(0);
+    setInputTime(formatTime(0));
+    setRepeat(false);
+    setRepeatCount(1);
+    setRepeatCountInput("1");
+    setDurationTouched(false);
+    setDurationPasteError("");
+    setRepeatTouched(false);
+    setRepeatPasteError("");
     setRepeatCycle(0);
     setShowPopup(false);
     timerSessionRef.current = null;
@@ -698,12 +715,10 @@ const App: React.FC = () => {
     clearStatusMessage();
   };
 
-  const handleInputBlurOrEnter = () => {
-    const totalSeconds = parseInputTime(inputTime);
-    const now = new Date();
-    const end = new Date(now.getTime() + totalSeconds * 1000);
-    timerSessionRef.current = null;
-    setIsRunning(false);
+  const updateDuration = (value: string) => {
+    if (!canEditTimer) return;
+    const totalSeconds = validateDuration(value).seconds ?? 0;
+    setInputTime(value);
     setInitialTime(totalSeconds);
     setTimeLeft(totalSeconds);
     setRepeatCycle(0);
@@ -711,33 +726,23 @@ const App: React.FC = () => {
     setTotalProgress(0);
     setShowPopup(false);
     setCompletedAt("");
+    setRepeatTimestamps([]);
     clearStatusMessage();
-    setTimeRange({
-      start: formatTimeWithSeconds(now),
-      end: formatTimeWithSeconds(end),
-    });
   };
 
   const handleRepeatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (timerSessionRef.current) return;
-
+    if (!canEditTimer) return;
     const value = e.target.value;
-    const parsed = parseInt(value);
+    if (!/^\d{0,3}$/.test(value)) return;
+    setRepeatCountInput(value);
+    setRepeatCount(validateRepeatCount(value).count ?? 1);
+    setRepeatPasteError("");
+  };
 
-    if (!isNaN(parsed)) {
-      const clamped = Math.min(Math.max(parsed, 1), 100);
-      setRepeatCount(clamped);
-      setRepeatCountInput(clamped.toString());
-
-      const now = new Date();
-      const end = new Date(now.getTime() + initialTime * clamped * 1000);
-      setTimeRange({
-        start: formatTimeWithSeconds(now),
-        end: formatTimeWithSeconds(end),
-      });
-    } else {
-      setRepeatCountInput("");
-    }
+  const applyDurationPreset = (seconds: number) => {
+    setDurationTouched(false);
+    setDurationPasteError("");
+    updateDuration(formatTime(seconds));
   };
 
   const applyTimerSetup = useCallback(
@@ -745,6 +750,7 @@ const App: React.FC = () => {
       if (timerSessionRef.current) return;
 
       const safeSeconds = Math.max(0, Math.floor(seconds));
+      if (safeSeconds > MAX_INTERVAL_SECONDS) return;
       const safeRepeatCount = clampNumber(Math.floor(nextRepeatCount), 1, 100);
       const activeRepeatCount = nextRepeat ? safeRepeatCount : 1;
       const now = new Date();
@@ -753,6 +759,10 @@ const App: React.FC = () => {
       setRepeat(nextRepeat);
       setRepeatCount(safeRepeatCount);
       setRepeatCountInput(safeRepeatCount.toString());
+      setDurationTouched(false);
+      setDurationPasteError("");
+      setRepeatTouched(false);
+      setRepeatPasteError("");
       if (nextSound && soundMap[nextSound]) {
         setSelectedSound(nextSound);
       }
@@ -776,8 +786,8 @@ const App: React.FC = () => {
   );
 
   const addCustomPreset = () => {
-    if (initialTime <= 0) {
-      showTemporaryStatusMessage("Set a timer duration before saving a custom preset.");
+    if (!hasValidSetup) {
+      showTemporaryStatusMessage("Enter a valid timer setup before saving a custom preset.");
       return;
     }
 
@@ -891,28 +901,13 @@ const App: React.FC = () => {
     const shouldClear = window.confirm("Clear timer, repeat settings, and custom presets?");
     if (!shouldClear) return;
 
-    timerSessionRef.current = null;
-    setIsRunning(false);
-    setInitialTime(0);
-    setTimeLeft(0);
-    setInputTime(formatTime(0));
-    setRepeat(false);
-    setRepeatCount(1);
-    setRepeatCountInput("1");
-    setRepeatCycle(0);
-    setIntervalProgress(0);
-    setTotalProgress(0);
-    setTimeRange({ start: "", end: "" });
-    setRepeatTimestamps([]);
+    stopTimer();
     setCustomPresets([]);
-    setShowPopup(false);
-    setCompletedAt("");
     setEditingPresetId(null);
     setPresetLabelDraft("");
     setDraggedPresetId(null);
     setDragOverPresetId(null);
     suppressPresetClickRef.current = false;
-    clearStatusMessage();
   };
 
   const deleteSessionHistoryItem = (id: string) => {
@@ -949,7 +944,7 @@ const App: React.FC = () => {
 
         if (showPopup) {
           event.preventDefault();
-          setShowPopup(false);
+          stopTimer();
           return;
         }
 
@@ -1005,7 +1000,6 @@ const App: React.FC = () => {
     { label: "10 min", value: 10 * 60 },
     { label: "15 min", value: 15 * 60 },
     { label: "20 min", value: 20 * 60 },  
-    { label: "25 min", value: 25 * 60 },  
     { label: "30 min", value: 30 * 60 },
     { label: "45 min", value: 45 * 60 },
     { label: "50 min", value: 50 * 60 },
@@ -1081,15 +1075,19 @@ const App: React.FC = () => {
 
       <h1>Repeat Timer</h1>
 
-      <input
-        type="text"
+      <DurationInput
         value={inputTime}
-        onChange={(e) => setInputTime(e.target.value)}
-        onBlur={handleInputBlurOrEnter}
-        onKeyDown={(e) => e.key === "Enter" && handleInputBlurOrEnter()}
-        className="time-input"
-        placeholder="HH:MM:SS"
         disabled={!canEditTimer}
+        error={durationError}
+        onChange={(value) => {
+          setDurationPasteError("");
+          updateDuration(value);
+        }}
+        onCommit={(value) => {
+          setDurationTouched(true);
+          updateDuration(value);
+        }}
+        onInvalidPaste={setDurationPasteError}
       />
 
       <div className="preset-panel">
@@ -1099,10 +1097,10 @@ const App: React.FC = () => {
             <button
               className="save-preset-button"
               type="button"
-              disabled={!canEditTimer || initialTime <= 0}
+              disabled={!canEditTimer || !hasValidSetup}
               onClick={addCustomPreset}
             >
-              + Save {formatPresetLabel(initialTime)}
+              {hasValidSetup ? `+ Save ${formatPresetLabel(initialTime)}` : "+ Save Preset"}
             </button>
           </div>
           <div className="preset-grid">
@@ -1111,7 +1109,7 @@ const App: React.FC = () => {
                 key={label}
                 className="btn btn-secondary preset-btn"
                 disabled={!canEditTimer}
-                onClick={() => applyTimerSetup(value, repeat, repeatCount)}
+                onClick={() => applyDurationPreset(value)}
               >
                 {label}
               </button>
@@ -1188,7 +1186,7 @@ const App: React.FC = () => {
                         title="Drag to reorder. Press Alt+Left or Alt+Right to reorder with the keyboard."
                         onClick={() => {
                           if (suppressPresetClickRef.current) return;
-                          applyTimerSetup(preset.seconds, repeat, repeatCount);
+                          applyDurationPreset(preset.seconds);
                         }}
                         onDragStart={(event) => handleCustomPresetDragStart(event, preset.id)}
                         onDragEnd={() => {
@@ -1283,16 +1281,19 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-          {statusMessage && <div className="status-message">{statusMessage}</div>}
         </div>
       )}
+
+      <div className="setup-status" role="status" aria-live="polite" aria-atomic="true">
+        {statusMessage && <div className="status-message">{statusMessage}</div>}
+      </div>
 
       <div className="settings-row">
         <label>
           <input
             type="checkbox"
             checked={repeat}
-            disabled={hasActiveSession}
+            disabled={!canEditTimer}
             onChange={() => setRepeat(!repeat)}
           />{" "}
           Repeat
@@ -1300,21 +1301,57 @@ const App: React.FC = () => {
         {repeat && (
           <>
             <input
-              type="number"
-              min={1}
-              max={100}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={3}
+              aria-label="Repeat count"
+              aria-invalid={Boolean(repeatError)}
+              aria-describedby={repeatError ? "repeat-error" : undefined}
               value={repeatCountInput}
               onChange={handleRepeatChange}
-              disabled={hasActiveSession}
+              onBlur={() => {
+                setRepeatTouched(true);
+                const result = validateRepeatCount(repeatCountInput);
+                if (result.count !== null) setRepeatCountInput(result.count.toString());
+              }}
+              onKeyDown={(event) => {
+                if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1 && !/^\d$/.test(event.key)) {
+                  event.preventDefault();
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  setRepeatTouched(true);
+                }
+              }}
+              onPaste={(event) => {
+                event.preventDefault();
+                const input = event.currentTarget;
+                const pasted = event.clipboardData.getData("text").trim();
+                const next = input.value.slice(0, input.selectionStart ?? 0) + pasted +
+                  input.value.slice(input.selectionEnd ?? input.value.length);
+                const result = validateRepeatCount(next);
+                if (result.count === null) {
+                  setRepeatPasteError(result.error);
+                } else {
+                  setRepeatPasteError("");
+                  setRepeatCountInput(next);
+                  setRepeatCount(result.count);
+                }
+              }}
+              disabled={!canEditTimer}
               className="repeat-count-input"
             />
-            <span className="total-summary">
+            {(hasActiveSession || showPopup || hasValidSetup) && <span className="total-summary">
               Total: {formattedDuration}
               {timeRange.start && timeRange.end && ` (${timeRange.start} – ${timeRange.end})`}
-            </span>
+            </span>}
           </>
         )}
       </div>
+
+      {repeat && repeatError && <div id="repeat-error" className="validation-error" role="alert">{repeatError}</div>}
 
       <div className="settings-row sound-row">
         <label>Sound: </label>
@@ -1452,7 +1489,7 @@ const App: React.FC = () => {
             ))}
           </div>
           )}
-          <button className="btn" onClick={() => setShowPopup(false)}>
+          <button className="btn" onClick={stopTimer}>
             Close
           </button>
         </div>
